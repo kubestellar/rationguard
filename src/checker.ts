@@ -5,8 +5,19 @@ const MIN_KEYWORD_CONFIDENCE = 0.3;
 const EXACT_MATCH_CONFIDENCE = 1.0;
 const KEYWORD_WEIGHT = 0.15;
 
+const FILLER_WORDS = /\b(is|are|was|were|been|being|has|have|had|do|does|did|will|would|shall|should|can|could|may|might|must|the|a|an|so|just|very|really|quite|all|also|still)\b/g;
+const VERB_SUFFIXES = /\b(\w+?)(ing|ed|s)\b/g;
+
 function normalizeText(text: string): string {
   return text.toLowerCase().replace(/['']/g, "'").replace(/\s+/g, ' ').trim();
+}
+
+function reduceText(text: string): string {
+  return normalizeText(text)
+    .replace(FILLER_WORDS, '')
+    .replace(VERB_SUFFIXES, '$1')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 function scoreExcuse(text: string, excuse: Excuse): MatchResult {
@@ -22,11 +33,13 @@ function scoreExcuse(text: string, excuse: Excuse): MatchResult {
     };
   }
 
+  const reduced = reduceText(text);
   let keywordHits = 0;
   let bestMatch = '';
   for (const kw of excuse.keywords) {
     const kwNorm = normalizeText(kw);
-    if (normalized.includes(kwNorm)) {
+    const kwReduced = reduceText(kw);
+    if (normalized.includes(kwNorm) || reduced.includes(kwReduced)) {
       keywordHits++;
       if (kw.length > bestMatch.length) bestMatch = kw;
     }
