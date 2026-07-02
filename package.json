@@ -1,0 +1,48 @@
+{
+  "name": "@kubestellar/rationguard",
+  "version": "0.1.0",
+  "description": "Detect and rebut rationalization patterns in AI agent output",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "rationguard": "dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "node --test dist/checker.test.js",
+    "lint": "tsc --noEmit"
+  },
+  "keywords": [
+    "ai",
+    "agent",
+    "rationalization",
+    "excuse",
+    "defense",
+    "guard",
+    "llm",
+    "cli"
+  ],
+  "author": "KubeStellar",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kubestellar/rationguard.git"
+  },
+  "bugs": {
+    "url": "https://github.com/kubestellar/rationguard/issues"
+  },
+  "homepage": "https://github.com/kubestellar/rationguard#readme",
+  "engines": {
+    "node": ">=18"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.7.0"
+  }
+}
