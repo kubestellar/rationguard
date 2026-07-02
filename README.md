@@ -21,23 +21,37 @@ npm install -g @kubestellar/rationguard @kubestellar/pluk
 One command — creates a tmux session, starts the AI CLI, wires pluk event capture, opens a terminal window for you to interact, and runs rationguard in this terminal to detect rationalizations:
 
 ```bash
-rationguard attach my-agent --cli=claude --rebuttal=send
+rationguard attach my-agent --cli=claude --rebuttal=send --dangerous
 ```
 
 What happens:
 1. A tmux session named `my-agent` is created
-2. `claude` starts inside it
+2. `claude --dangerously-skip-permissions` starts inside it (the `--dangerous` flag maps to the right permission-skip flag per CLI)
 3. pluk captures all terminal output via `tmux pipe-pane`
 4. A **new terminal window opens** attached to the tmux session — this is where you interact with the agent
 5. rationguard watches the pluk event stream in your original terminal, printing detections
+6. When a rationalization is detected, the rebuttal is **sent directly into the tmux session** — the agent receives it as its next message
 
 ```bash
-# Start goose in a specific project
-rationguard attach my-agent --cli=goose --dir=/path/to/project
+# Start goose with auto-approve
+rationguard attach my-agent --cli=goose --dir=/path/to/project --dangerous
 
-# Start copilot
+# Start copilot with rebuttals
 rationguard attach my-agent --cli=copilot --rebuttal=send
+
+# Pass extra CLI arguments
+rationguard attach my-agent --cli=claude --cli-args="--model opus" --dangerous
 ```
+
+### `--dangerous` flag
+
+Maps to the correct permission-skip flag per CLI:
+
+| CLI | Flag applied |
+|-----|-------------|
+| `claude` | `--dangerously-skip-permissions` |
+| `codex` | `--full-auto` |
+| `goose` | `--non-interactive` |
 
 ### Already have sessions running?
 
@@ -60,6 +74,8 @@ When rationguard detects an excuse, it prints the match and sends the rebuttal d
   Rebuttal: Did you actually run the checks THIS cycle? Paste the output.
   → Sent rebuttal to scanner
 ```
+
+Rebuttals are **deduplicated** — the same excuse pattern won't trigger another rebuttal within a 30-second cooldown window, even if the agent repeats the same rationalization across multiple output flushes.
 
 ---
 
@@ -189,10 +205,10 @@ const block = generatePromptBlock();
 
 | Command | What it does |
 |---------|-------------|
-| `rationguard attach <session>` | Start agent + pluk + rationguard + terminal |
+| `rationguard attach <session> --dangerous` | Start agent + pluk + rationguard + terminal (skip permissions) |
 | `rationguard sessions` | List active pluk-monitored agent sessions |
 | `rationguard watch <session>` | Real-time detection via pluk |
-| `rationguard watch <session> --rebuttal=send` | Detect and auto-rebut |
+| `rationguard watch <session> --rebuttal=send` | Detect and auto-rebut (with 30s dedup cooldown) |
 | `rationguard check <text>` | Check for excuse patterns |
 | `rationguard check --file=<path>` | Check file contents |
 | `rationguard prompt` | Generate defense table for system prompts |
