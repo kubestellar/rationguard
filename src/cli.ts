@@ -115,7 +115,12 @@ async function cmdCheck(positional: string[], flags: Record<string, string>): Pr
   let input = positional.join(' ');
 
   if (flags['file']) {
-    input = fs.readFileSync(flags['file'], 'utf-8');
+    const filePath = flags['file'];
+    if (!fs.existsSync(filePath)) {
+      console.error(`${ANSI_RED}Error:${ANSI_RESET} File not found: ${filePath}`);
+      process.exit(1);
+    }
+    input = fs.readFileSync(filePath, 'utf-8');
   }
 
   if (!input) {
@@ -175,10 +180,11 @@ function cmdPrompt(flags: Record<string, string>): void {
   console.log(block);
 }
 
-function cmdAdd(flags: Record<string, string>): void {
-  const excuse = flags['excuse'];
+function cmdAdd(positional: string[], flags: Record<string, string>): void {
+  const excuse = positional.join(' ') || flags['excuse'];
   if (!excuse) {
-    console.error(`${ANSI_RED}Error:${ANSI_RESET} --excuse="<text>" is required.`);
+    console.error(`${ANSI_RED}Error:${ANSI_RESET} Provide excuse text as an argument or --excuse="<text>".`);
+    console.error(`  rationguard add "I already handled that" --category false-completion`);
     process.exit(1);
   }
 
@@ -259,7 +265,7 @@ async function main(): Promise<void> {
       cmdPrompt(flags);
       break;
     case 'add':
-      cmdAdd(flags);
+      cmdAdd(positional, flags);
       break;
     case 'list':
       cmdList(flags);

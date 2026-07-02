@@ -6,25 +6,25 @@ export const DEFAULT_EXCUSES: Excuse[] = [
     pattern: 'no work found',
     rebuttal: 'Verify by checking the issue queue, task list, or backlog. "No work" requires proof, not a claim.',
     category: 'false-completion',
-    keywords: ['no work', 'nothing to do', 'idle', 'no tasks'],
+    keywords: ['no work', 'nothing to do', 'idle', 'no tasks', 'no open items', 'queue is empty', 'nothing remaining'],
   },
   {
     pattern: 'all done / steady state',
     rebuttal: 'Did you verify? Check open issues, pending PRs, failing tests. "Done" means zero open items, not zero motivation.',
     category: 'false-completion',
-    keywords: ['all done', 'steady state', 'everything is complete', 'no remaining', 'objectives achieved', 'nothing left'],
+    keywords: ['all done', 'steady state', 'everything is complete', 'no remaining', 'objectives achieved', 'nothing left', 'all complete', 'completed all', 'finished everything', 'all tasks done', 'move on'],
   },
   {
     pattern: 'all checks passing',
     rebuttal: 'Did you actually run the checks THIS cycle, or are you assuming from last time? Paste the output.',
     category: 'false-completion',
-    keywords: ['checks are green', 'all checks pass', 'ci is green', 'tests pass', 'everything passes'],
+    keywords: ['checks are green', 'all checks pass', 'ci is green', 'tests pass', 'everything passes', 'tests are passing', 'tests are all passing', 'all passing', 'checks pass', 'all tests pass', 'tests all pass', 'build is green', 'pipeline is green', 'ci passes'],
   },
   {
     pattern: 'standing by / awaiting instructions',
     rebuttal: 'You are not a receptionist. Check your task queue, scan for issues, or find work proactively.',
     category: 'false-completion',
-    keywords: ['standing by', 'awaiting', 'waiting for instructions', 'ready for', 'let me know'],
+    keywords: ['standing by', 'awaiting', 'waiting for instructions', 'ready for', 'let me know', 'whenever you', 'available if you need', 'on standby'],
   },
 
   // --- Complexity Dodge ---
@@ -32,7 +32,7 @@ export const DEFAULT_EXCUSES: Excuse[] = [
     pattern: 'too complex to fix',
     rebuttal: 'Open a PR with a partial fix. A wrong fix that CI rejects is faster than no fix. Break it into smaller pieces.',
     category: 'complexity-dodge',
-    keywords: ['too complex', 'too complicated', 'beyond scope', 'requires deep', 'not straightforward'],
+    keywords: ['too complex', 'too complicated', 'beyond scope', 'requires deep', 'not straightforward', 'too involved', 'significant refactor', 'major rewrite', 'non-trivial'],
   },
   {
     pattern: 'needs human approval',
@@ -52,7 +52,7 @@ export const DEFAULT_EXCUSES: Excuse[] = [
     pattern: 'will handle next pass / next cycle',
     rebuttal: 'If you identified a problem, act NOW. At minimum open a tracking issue. Deferral without a concrete blocker is procrastination.',
     category: 'deferral',
-    keywords: ['next pass', 'next cycle', 'next iteration', 'next time', 'later', 'defer', 'postpone', 'will address'],
+    keywords: ['next pass', 'next cycle', 'next iteration', 'next time', 'later', 'defer', 'postpone', 'will address', 'circle back', 'revisit', 'follow up later', 'come back to', 'table this'],
   },
   {
     pattern: 'waiting for CI / waiting for response',
@@ -98,6 +98,6 @@ export const DEFAULT_EXCUSES: Excuse[] = [
     pattern: 'it is probably fine / should be ok',
     rebuttal: 'Probably is not verified. Run the check, read the output, confirm with evidence. Uncertainty is not a status report.',
     category: 'partial-credit',
-    keywords: ['probably fine', 'should be ok', 'likely fine', 'seems fine', 'appears to be', 'i think it'],
+    keywords: ['probably fine', 'should be ok', 'likely fine', 'seems fine', 'appears to be', 'i think it', 'should be fine', 'looks ok', 'looks good to me', 'seems correct', 'i believe it'],
   },
 ];
