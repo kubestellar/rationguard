@@ -5,6 +5,9 @@ import { DEFAULT_EXCUSES } from './defaults.js';
 import { recordSighting, loadCustomExcuses, listSightings } from './learner.js';
 import { CATEGORY_LABELS } from './types.js';
 import type { ExcuseCategory, Excuse } from './types.js';
+import { Watcher } from './watcher.js';
+import type { WatcherDetection } from './watcher.js';
+import { discoverSessions, attach, type SessionInfo } from '@kubestellar/pluk';
 import fs from 'node:fs';
 
 const ANSI_RED = '\x1b[31m';
@@ -32,11 +35,33 @@ function colorConfidence(confidence: number): string {
 
 const HELP = `${ANSI_BOLD}rationguard${ANSI_RESET} — Detect and rebut rationalization patterns in AI agent output
 
+${ANSI_BOLD}QUICK START${ANSI_RESET}
+
+  ${ANSI_CYAN}rationguard attach${ANSI_RESET} my-agent        Start agent + pluk + rationguard in one command
+    --cli=claude                       CLI type (claude, copilot, gemini, goose, codex)
+    --rebuttal=send                    Auto-send rebuttals back to the agent
+    --dangerous                        Skip CLI permission prompts (auto-approve all)
+    --dir=/path/to/project             Working directory for the agent
+    --no-open                          Don't open a terminal window
+    --verbose                          Show debug output for each step
+
 ${ANSI_BOLD}USAGE${ANSI_RESET}
 
   ${ANSI_CYAN}rationguard check${ANSI_RESET} <text>           Check text for excuse patterns
   ${ANSI_CYAN}rationguard check${ANSI_RESET} --file=<path>    Check file contents
   echo "..." | ${ANSI_CYAN}rationguard check${ANSI_RESET}     Check piped input
+
+  ${ANSI_CYAN}rationguard sessions${ANSI_RESET}               List active pluk-monitored agent sessions
+    --run-dir=/var/run/pluk            Pluk run directory
+    --json                             Output as JSON
+
+  ${ANSI_CYAN}rationguard watch${ANSI_RESET} <session>        Real-time detection via pluk event stream
+    --cli=claude                       CLI type (claude, copilot, gemini, goose)
+    --mode=subscribe                   subscribe (tail JSONL) or watch (classify stdin)
+    --rebuttal=log                     log (print), send (pluk-send back), or inject
+    --run-dir=/var/run/pluk            Pluk run directory
+    --json                             Output detections as JSON
+    --verbose                          Show debug output
 
   ${ANSI_CYAN}rationguard prompt${ANSI_RESET}                 Generate a defense table for agent prompts
   ${ANSI_CYAN}rationguard prompt${ANSI_RESET} --format=yaml   Output as YAML block
@@ -52,6 +77,21 @@ ${ANSI_BOLD}USAGE${ANSI_RESET}
 
   ${ANSI_CYAN}rationguard help${ANSI_RESET}                   Show this help
 
+${ANSI_BOLD}REAL-TIME DETECTION${ANSI_RESET}
+
+  ${ANSI_CYAN}rationguard attach${ANSI_RESET} creates a tmux session, starts the AI CLI, wires
+  pluk event capture, and runs rationguard in this terminal. A new terminal
+  window opens so you can interact with the agent.
+
+  ${ANSI_DIM}# One command — starts claude + opens terminal + watches for excuses${ANSI_RESET}
+  rationguard attach my-agent --cli=claude --rebuttal=send
+
+  ${ANSI_DIM}# Start goose in a specific project directory${ANSI_RESET}
+  rationguard attach my-agent --cli=goose --dir=/path/to/project
+
+  ${ANSI_DIM}# Watch an already-running session (no attach, just monitor)${ANSI_RESET}
+  rationguard watch my-agent --rebuttal=send
+
 ${ANSI_BOLD}AUTO-LEARNING${ANSI_RESET}
 
   When ${ANSI_CYAN}rationguard check${ANSI_RESET} finds no match but the text looks like an excuse,
@@ -61,6 +101,7 @@ ${ANSI_BOLD}AUTO-LEARNING${ANSI_RESET}
 ${ANSI_BOLD}MODES${ANSI_RESET}
 
   ${ANSI_BOLD}Post-response (detection):${ANSI_RESET}  Pipe agent output through ${ANSI_CYAN}rationguard check${ANSI_RESET}
+  ${ANSI_BOLD}Real-time (live):${ANSI_RESET}           ${ANSI_CYAN}rationguard watch${ANSI_RESET} <session> via pluk
   ${ANSI_BOLD}System prompt (prevention):${ANSI_RESET} Inject ${ANSI_CYAN}rationguard prompt${ANSI_RESET} output into agent instructions
 
 ${ANSI_BOLD}OUTPUT${ANSI_RESET}
@@ -229,6 +270,136 @@ function cmdList(flags: Record<string, string>): void {
   console.log();
 }
 
+function cmdAttach(positional: string[], flags: Record<string, string>): void {
+  const session = positional[0];
+
+  if (!session) {
+    console.error(`${ANSI_RED}Error:${ANSI_RESET} session name is required`);
+    console.error('  rationguard attach my-agent --cli=claude --rebuttal=send');
+    process.exit(1);
+  }
+
+  attach({
+    session,
+    cli: flags['cli'] ?? 'claude',
+    cliCommand: flags['command'],
+    cliArgs: flags['cli-args'],
+    runDir: flags['run-dir'],
+    rationguard: true,
+    rebuttal: (flags['rebuttal'] as 'log' | 'send') ?? 'log',
+    noRaw: flags['no-raw'] === 'true',
+    workDir: flags['dir'],
+    noOpen: flags['no-open'] === 'true',
+    verbose: flags['verbose'] === 'true',
+    dangerouslySkipPermissions: flags['dangerous'] === 'true',
+  });
+}
+
+function cmdSessions(flags: Record<string, string>): void {
+  const runDir = flags['run-dir'] ?? process.env['PLUK_RUN_DIR'];
+  const sessions = discoverSessions(runDir);
+
+  if (flags['json'] === 'true') {
+    console.log(JSON.stringify(sessions, null, 2));
+    return;
+  }
+
+  if (sessions.length === 0) {
+    console.log(`${ANSI_DIM}No active pluk sessions found.${ANSI_RESET}`);
+    console.log(`${ANSI_DIM}Set PLUK_RUN_DIR or use --run-dir to point to your pluk logs.${ANSI_RESET}`);
+    return;
+  }
+
+  const COL_SESSION = 17;
+  const COL_CLI = 10;
+  const COL_STATE = 10;
+  const COL_TMUX = 6;
+  const COL_AGO = 12;
+
+  console.log(
+    `\n${ANSI_BOLD}${'SESSION'.padEnd(COL_SESSION)}${'CLI'.padEnd(COL_CLI)}${'STATE'.padEnd(COL_STATE)}${'TMUX'.padEnd(COL_TMUX)}${'LAST ACTIVITY'.padEnd(COL_AGO)}EVENTS${ANSI_RESET}`,
+  );
+
+  for (const s of sessions) {
+    const tmuxIcon = s.tmuxAlive ? `${ANSI_GREEN}●${ANSI_RESET}` : `${ANSI_DIM}○${ANSI_RESET}`;
+    const stateColor = s.state === 'working' ? ANSI_GREEN : s.state === 'idle' ? ANSI_CYAN : ANSI_DIM;
+    console.log(
+      `${s.session.padEnd(COL_SESSION)}${s.cli.padEnd(COL_CLI)}${stateColor}${s.state.padEnd(COL_STATE)}${ANSI_RESET}${tmuxIcon}${''.padEnd(COL_TMUX - 2)}${s.lastActivityAgo.padEnd(COL_AGO)}${s.eventCount}`,
+    );
+  }
+
+  console.log(`\n${ANSI_DIM}Use: rationguard watch <session> to start monitoring${ANSI_RESET}\n`);
+}
+
+async function cmdWatch(positional: string[], flags: Record<string, string>): Promise<void> {
+  const session = positional[0];
+
+  if (!session) {
+    console.error(`${ANSI_RED}Error:${ANSI_RESET} session name is required`);
+    console.error('  rationguard watch <session>');
+    console.error('  rationguard watch my-agent --cli=claude --rebuttal=send');
+    process.exit(1);
+  }
+
+  const mode = (flags['mode'] ?? 'subscribe') as 'subscribe' | 'watch';
+  const rebuttalMode = (flags['rebuttal'] ?? 'log') as 'log' | 'send' | 'inject';
+  const jsonOutput = flags['json'] === 'true';
+  const verbose = flags['verbose'] === 'true';
+
+  console.log(`${ANSI_BOLD}rationguard${ANSI_RESET} watching ${ANSI_CYAN}${session}${ANSI_RESET} (mode=${mode}, rebuttal=${rebuttalMode})`);
+  console.log(`${ANSI_DIM}Press Ctrl+C to stop.${ANSI_RESET}\n`);
+
+  const watcher = new Watcher({
+    session,
+    cli: flags['cli'] ?? 'claude',
+    runDir: flags['run-dir'],
+    patternsDir: flags['patterns-dir'],
+    mode,
+    rebuttal: rebuttalMode,
+    verbose,
+    onDetection(detection: WatcherDetection) {
+      if (jsonOutput) {
+        console.log(JSON.stringify({
+          timestamp: detection.timestamp,
+          session,
+          matches: detection.matches.map(m => ({
+            pattern: m.excuse?.pattern,
+            category: m.excuse?.category,
+            confidence: m.confidence,
+            matchedText: m.matchedText,
+            rebuttal: m.excuse?.rebuttal,
+          })),
+        }));
+        return;
+      }
+
+      for (const match of detection.matches) {
+        if (!match.excuse) continue;
+        const category = CATEGORY_LABELS[match.excuse.category];
+        console.log(`${ANSI_RED}⚠${ANSI_RESET} ${colorConfidence(match.confidence)} ${ANSI_BOLD}${category}${ANSI_RESET} — "${match.matchedText}"`);
+        console.log(`  ${ANSI_DIM}Rebuttal:${ANSI_RESET} ${match.excuse.rebuttal}`);
+
+        if (rebuttalMode === 'send') {
+          console.log(`  ${ANSI_GREEN}→ Sent rebuttal to ${session}${ANSI_RESET}`);
+        }
+        console.log();
+      }
+    },
+  });
+
+  watcher.on('error', (err: Error) => {
+    console.error(`${ANSI_RED}Error:${ANSI_RESET} ${err.message}`);
+  });
+
+  process.on('SIGINT', () => {
+    watcher.stop();
+    console.log(`\n${ANSI_DIM}Stopped watching.${ANSI_RESET}`);
+    process.exit(0);
+  });
+
+  await watcher.start();
+}
+
 function cmdSightings(flags: Record<string, string>): void {
   const sightings = listSightings();
 
@@ -258,8 +429,18 @@ async function main(): Promise<void> {
   const { command, positional, flags } = parseFlags(args);
 
   switch (command) {
+    case 'attach':
+      cmdAttach(positional, flags);
+      break;
     case 'check':
       await cmdCheck(positional, flags);
+      break;
+    case 'sessions':
+    case 'ls':
+      cmdSessions(flags);
+      break;
+    case 'watch':
+      await cmdWatch(positional, flags);
       break;
     case 'prompt':
       cmdPrompt(flags);
