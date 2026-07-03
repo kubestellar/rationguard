@@ -329,6 +329,7 @@ async function cmdWatch(positional, flags) {
                 }));
                 return;
             }
+            const sentPatterns = new Set(detection.sentRebuttals ?? []);
             for (const match of detection.matches) {
                 if (!match.excuse)
                     continue;
@@ -336,7 +337,12 @@ async function cmdWatch(positional, flags) {
                 console.log(`${ANSI_RED}⚠${ANSI_RESET} ${colorConfidence(match.confidence)} ${ANSI_BOLD}${category}${ANSI_RESET} — "${match.matchedText}"`);
                 console.log(`  ${ANSI_DIM}Rebuttal:${ANSI_RESET} ${match.excuse.rebuttal}`);
                 if (rebuttalMode === 'send') {
-                    console.log(`  ${ANSI_GREEN}→ Sent rebuttal to ${session}${ANSI_RESET}`);
+                    if (sentPatterns.has(match.excuse.pattern)) {
+                        console.log(`  ${ANSI_GREEN}→ Sent rebuttal to ${session}${ANSI_RESET}`);
+                    }
+                    else {
+                        console.log(`  ${ANSI_DIM}→ Rebuttal suppressed (cooldown/dedup)${ANSI_RESET}`);
+                    }
                 }
                 console.log();
             }
