@@ -1,6 +1,6 @@
 {
   "name": "@kubestellar/rationguard",
-  "version": "0.10.2",
+  "version": "0.10.3",
   "description": "Detect and rebut rationalization patterns in AI agent output",
   "type": "module",
   "main": "dist/index.js",

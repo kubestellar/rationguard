@@ -75,7 +75,12 @@ When rationguard detects an excuse, it prints the match and sends the rebuttal d
   → Sent rebuttal to scanner
 ```
 
-Rebuttals are **deduplicated** — the same excuse pattern won't trigger another rebuttal within a 30-second cooldown window, even if the agent repeats the same rationalization across multiple output flushes.
+Rebuttals are **deduplicated** at two levels:
+
+1. **Per-pattern cooldown (30s)** — the same excuse pattern won't trigger another rebuttal within 30 seconds, even across multiple output flushes
+2. **Per-text dedup** — if multiple patterns match with identical rebuttal text in the same detection cycle, only one is sent
+
+After sending any rebuttal, rationguard enters a **60-second quiet period** — all detections are suppressed. This prevents feedback loops where the agent's response to a rebuttal (e.g., "all checks pass, everything looks good") triggers new detections.
 
 ---
 
@@ -208,7 +213,7 @@ const block = generatePromptBlock();
 | `rationguard attach <session> --dangerous` | Start agent + pluk + rationguard + terminal (skip permissions) |
 | `rationguard sessions` | List active pluk-monitored agent sessions |
 | `rationguard watch <session>` | Real-time detection via pluk |
-| `rationguard watch <session> --rebuttal=send` | Detect and auto-rebut (with 30s dedup cooldown) |
+| `rationguard watch <session> --rebuttal=send` | Detect and auto-rebut (30s cooldown + 60s quiet period) |
 | `rationguard check <text>` | Check for excuse patterns |
 | `rationguard check --file=<path>` | Check file contents |
 | `rationguard prompt` | Generate defense table for system prompts |
