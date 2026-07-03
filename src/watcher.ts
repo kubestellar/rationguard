@@ -10,6 +10,7 @@ const RAW_OUTPUT_BUFFER_MAX_LINES = 20;
 const RAW_OUTPUT_FLUSH_MS = 2_000;
 const CONFIDENCE_HIGH = 0.7;
 const REBUTTAL_COOLDOWN_MS = 30_000;
+const POST_REBUTTAL_QUIET_MS = 60_000;
 
 export interface WatcherDetection {
   event: PlukEvent;
@@ -91,6 +92,7 @@ export class Watcher extends EventEmitter {
   private verbose: boolean;
   private flushCount = 0;
   private rebuttalCooldowns: Map<string, number> = new Map();
+  private lastRebuttalSentAt = 0;
 
   constructor(opts: WatcherOptions) {
     super();
@@ -202,6 +204,12 @@ export class Watcher extends EventEmitter {
       this.log(`flush #${this.flushCount}: clean`);
     }
 
+    const quietRemaining = POST_REBUTTAL_QUIET_MS - (Date.now() - this.lastRebuttalSentAt);
+    if (!result.clean && quietRemaining > 0) {
+      this.log(`flush #${this.flushCount}: ${result.matches.length} match(es) suppressed (post-rebuttal quiet period, ${Math.round(quietRemaining / 1000)}s remaining)`);
+      return;
+    }
+
     if (!result.clean) {
       this.log(`flush #${this.flushCount}: ${result.matches.length} match(es) found`);
       const detection: WatcherDetection = {
@@ -260,7 +268,8 @@ export class Watcher extends EventEmitter {
           }
         }
         if (sent.length > 0) {
-          this.log(`sent ${sent.length} unique rebuttal(s) for: ${sent.join(', ')}`);
+          this.lastRebuttalSentAt = Date.now();
+          this.log(`sent ${sent.length} unique rebuttal(s) for: ${sent.join(', ')} (quiet period: ${POST_REBUTTAL_QUIET_MS / 1000}s)`);
         }
       }
     }
