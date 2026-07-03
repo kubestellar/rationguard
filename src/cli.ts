@@ -373,6 +373,8 @@ async function cmdWatch(positional: string[], flags: Record<string, string>): Pr
         return;
       }
 
+      const sentPatterns = new Set(detection.sentRebuttals ?? []);
+
       for (const match of detection.matches) {
         if (!match.excuse) continue;
         const category = CATEGORY_LABELS[match.excuse.category];
@@ -380,7 +382,11 @@ async function cmdWatch(positional: string[], flags: Record<string, string>): Pr
         console.log(`  ${ANSI_DIM}Rebuttal:${ANSI_RESET} ${match.excuse.rebuttal}`);
 
         if (rebuttalMode === 'send') {
-          console.log(`  ${ANSI_GREEN}→ Sent rebuttal to ${session}${ANSI_RESET}`);
+          if (sentPatterns.has(match.excuse.pattern)) {
+            console.log(`  ${ANSI_GREEN}→ Sent rebuttal to ${session}${ANSI_RESET}`);
+          } else {
+            console.log(`  ${ANSI_DIM}→ Rebuttal suppressed (cooldown/dedup)${ANSI_RESET}`);
+          }
         }
         console.log();
       }

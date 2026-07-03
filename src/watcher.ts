@@ -17,6 +17,7 @@ export interface WatcherDetection {
   result: CheckResult;
   matches: MatchResult[];
   timestamp: string;
+  sentRebuttals?: string[];
 }
 
 export interface WatcherOptions {
@@ -229,12 +230,6 @@ export class Watcher extends EventEmitter {
         timestamp: new Date().toISOString(),
       };
 
-      this.emit('detection', detection);
-
-      if (this.opts.onDetection) {
-        this.opts.onDetection(detection);
-      }
-
       for (const match of result.matches) {
         if (match.excuse && match.confidence >= CONFIDENCE_HIGH) {
           recordSighting(match.matchedText, match.excuse.category);
@@ -269,8 +264,15 @@ export class Watcher extends EventEmitter {
         }
         if (sent.length > 0) {
           this.lastRebuttalSentAt = Date.now();
+          detection.sentRebuttals = sent;
           this.log(`sent ${sent.length} unique rebuttal(s) for: ${sent.join(', ')} (quiet period: ${POST_REBUTTAL_QUIET_MS / 1000}s)`);
         }
+      }
+
+      this.emit('detection', detection);
+
+      if (this.opts.onDetection) {
+        this.opts.onDetection(detection);
       }
     }
   }
