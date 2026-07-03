@@ -236,6 +236,7 @@ export class Watcher extends EventEmitter {
       if (this.opts.rebuttal === 'send') {
         const now = Date.now();
         const sent: string[] = [];
+        const sentTexts = new Set<string>();
         for (const match of result.matches) {
           if (!match.excuse) continue;
           const key = match.excuse.pattern;
@@ -244,11 +245,19 @@ export class Watcher extends EventEmitter {
             this.log(`skipping rebuttal for "${key}" (cooldown, ${Math.round((REBUTTAL_COOLDOWN_MS - (now - lastSent)) / 1000)}s remaining)`);
             continue;
           }
+          if (sentTexts.has(match.excuse.rebuttal)) {
+            this.log(`skipping duplicate rebuttal text for "${key}"`);
+            this.rebuttalCooldowns.set(key, now);
+            continue;
+          }
           this.rebuttalCooldowns.set(key, now);
           this.log(`sending rebuttal to ${this.opts.session}: "${match.excuse.rebuttal.slice(0, 80)}..."`);
           const ok = sendRebuttal(this.opts.session, match.excuse.rebuttal, this.verbose);
           this.log(`rebuttal ${ok ? 'DELIVERED' : 'FAILED'}`);
-          if (ok) sent.push(key);
+          if (ok) {
+            sent.push(key);
+            sentTexts.add(match.excuse.rebuttal);
+          }
         }
         if (sent.length > 0) {
           this.log(`sent ${sent.length} unique rebuttal(s) for: ${sent.join(', ')}`);
